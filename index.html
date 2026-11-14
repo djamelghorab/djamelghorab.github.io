@@ -18,7 +18,7 @@
 <section><div class="section-head"><div><h2>Send a GraphQL operation</h2><p>All 306 extracted document variants are selectable. GraphQL uses the observed POST transport.</p></div></div><div class="panel"><div class="editor">
 <div class="field wide"><label for="operation-select">Operation document</label><select id="operation-select"><option>Loading operations…</option></select><small id="operation-meta">Select an operation to load its exact document and declared variables.</small></div>
 <div class="field"><label for="graph-query">GraphQL document</label><textarea id="graph-query" class="tall" spellcheck="false" aria-label="GraphQL document"></textarea></div>
-<div class="field"><label for="graph-variables">Variables JSON</label><textarea id="graph-variables" class="tall" spellcheck="false" aria-label="GraphQL variables JSON">{}</textarea><small>Values are editable JSON. Required variable fields start as null for you to fill.</small></div>
+<div class="field"><label for="graph-variables">Variables JSON</label><textarea id="graph-variables" class="tall" spellcheck="false" aria-label="GraphQL variables JSON">{}</textarea><small>Values are editable JSON. All declared variables start as null. The Windows command writes the exact JSON bytes to a temporary file for curl.exe and removes it afterward.</small></div>
 </div><div class="actions"><button class="button primary" id="send-graphql">Send GraphQL POST</button><button class="button" id="copy-graphql-body">Copy JSON body</button><button class="button" id="copy-graphql-curl">Copy Windows curl.exe</button></div><div class="result" id="graphql-result" hidden><strong id="graphql-result-title"></strong><pre id="graphql-result-body"></pre></div></div></section>
 <section><div class="section-head"><div><h2>Send a REST request</h2><p>Choose one of the observed method and path pairs. Session headers remain in this tab only.</p></div></div><div class="panel"><div class="editor">
 <div class="field wide"><label for="rest-route">HTTP method and route</label><select id="rest-route"></select><small id="rest-route-hint">Request method and path are locked to the route selected above.</small></div>
@@ -91,14 +91,15 @@ function resultDisplay(boxId,titleId,bodyId,status,result){const box=$(boxId),ti
 function encodeBase64Utf8(value){const bytes=new TextEncoder().encode(value);let binary="";for(let i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);return btoa(binary)}
 function makePowerShellCurl({method,url,headers,body,session=false}){
  let lines=[];
- if(body!==undefined)lines.push(`$payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodeBase64Utf8(body)}'))`);
+ if(body!==undefined){lines.push(`$apiBodyBytes = [Convert]::FromBase64String('${encodeBase64Utf8(body)}')`,"$apiBodyFile = Join-Path $env:TEMP ('api-reference-' + [guid]::NewGuid().ToString('N') + '.json')","[IO.File]::WriteAllBytes($apiBodyFile, $apiBodyBytes)")}
  lines.push("$curlHeaders = @('Accept: */*', 'Referer: https://www.roboinvestv2.ocbc.com/')");
- for(const [key,value] of Object.entries(headers||{}))lines.push(`$curlHeaders += '${key}: ${value.replaceAll("'","''")}'`);
+ for(const [key,value] of Object.entries(headers||{})){if(key.toLowerCase()==="accept")continue;lines.push(`$curlHeaders += '${key}: ${value.replaceAll("'","''")}'`)}
  lines.push('if ($env:API_AUTH_TOKEN) { $curlHeaders += "Authorization: Bearer $env:API_AUTH_TOKEN" }');
  if(session){lines.push('if ($env:API_UID) { $curlHeaders += "uid: $env:API_UID" }','if ($env:API_CLIENT) { $curlHeaders += "client: $env:API_CLIENT" }','if ($env:API_ACCESS_TOKEN) { $curlHeaders += "access-token: $env:API_ACCESS_TOKEN" }')}
  lines.push(`$curlArgs = @('-X', '${method}', '${url}')`,"foreach ($header in $curlHeaders) { $curlArgs += @('-H', $header) }");
- if(body!==undefined)lines.push("$curlArgs += @('--data-binary', $payload)");
- lines.push('& curl.exe @curlArgs');return lines.join("\r\n");
+ if(body!==undefined){lines.push("$curlArgs += @('--data-binary', ('@' + $apiBodyFile))","try { & curl.exe @curlArgs } finally { Remove-Item -LiteralPath $apiBodyFile -Force -ErrorAction SilentlyContinue }")}
+ else lines.push('& curl.exe @curlArgs');
+ return lines.join("\r\n");
 }
 async function copyText(text){try{await navigator.clipboard.writeText(text)}catch{const area=document.createElement("textarea");area.value=text;area.style.position="fixed";area.style.opacity="0";document.body.append(area);area.select();document.execCommand("copy");area.remove()}}
 function setButtonMessage(button,message){const initial=button.dataset.initial||button.textContent;button.dataset.initial=initial;button.textContent=message;setTimeout(()=>button.textContent=initial,1800)}
