@@ -96,7 +96,7 @@ function makePowerShellCurl({method,url,headers,body,session=false}){
  for(const [key,value] of Object.entries(headers||{}))lines.push(`$curlHeaders += '${key}: ${value.replaceAll("'","''")}'`);
  lines.push('if ($env:API_AUTH_TOKEN) { $curlHeaders += "Authorization: Bearer $env:API_AUTH_TOKEN" }');
  if(session){lines.push('if ($env:API_UID) { $curlHeaders += "uid: $env:API_UID" }','if ($env:API_CLIENT) { $curlHeaders += "client: $env:API_CLIENT" }','if ($env:API_ACCESS_TOKEN) { $curlHeaders += "access-token: $env:API_ACCESS_TOKEN" }')}
- lines.push(`$curlArgs = @('-X', '${method}', '${url}')`,'foreach ($header in $curlHeaders) { $curlArgs += @('-H', $header) }');
+ lines.push(`$curlArgs = @('-X', '${method}', '${url}')`,"foreach ($header in $curlHeaders) { $curlArgs += @('-H', $header) }");
  if(body!==undefined)lines.push("$curlArgs += @('--data-binary', $payload)");
  lines.push('& curl.exe @curlArgs');return lines.join("\r\n");
 }
